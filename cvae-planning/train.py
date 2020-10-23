@@ -44,11 +44,10 @@ def main(args):
     plan_util = importlib.import_module('plan_util.%s' % (args.env_type))
     normalize = plan_util.normalize
     
-
-
     smpnet = SMPNet(e_net, cvae)
-    model_dir = args.model_dir + "%s/model_%d/lr_%f_opt_%s_beta_%f/" % \
-                                (args.env_type, args.model_id, args.learning_rate, args.opt, args.beta)
+    model_dir = args.model_dir + "%s/model_%d/lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f/" % \
+                                (args.env_type, args.model_id, args.learning_rate, \
+                                 args.lr_schedule_gamma, args.lr_schedule_patience, args.opt, args.beta)
     if not os.path.exists(model_dir):
         os.makedirs(model_dir, exist_ok=True)
     model_path='smpnet_epoch_%d.pkl' %(args.start_epoch)
@@ -105,11 +104,15 @@ def main(args):
     waypoint_dataset = waypoint_dataset[:-val_len]
     start_indices, goal_indices, env_indices = start_indices[:-val_len], goal_indices[:-val_len], env_indices[:-val_len]
 
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(smpnet.opt, mode='min', \
+                                        factor=args.lr_schedule_gamma, patience=args.lr_schedule_patience, verbose=True)
+
     # Train the Models
     print('training...')
 
-    writer_fname = 'env_%s_model_%d_lr_%f_opt_%s_beta_%f' % \
-                    (args.env_type, args.model_id, args.learning_rate, args.opt, args.beta)
+    writer_fname = 'env_%s_model_%d_lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f' % \
+                    (args.env_type, args.model_id, args.learning_rate, \
+                     args.lr_schedule_gamma, args.lr_schedule_patience, args.opt, args.beta)
 
     writer = SummaryWriter('./train_stats/'+writer_fname)
     record_i = 0
@@ -128,6 +131,7 @@ def main(args):
     for epoch in trange(args.start_epoch+1,args.num_epochs+1):
         print('epoch' + str(epoch))
         val_i = 0
+        smpnet.train()
         for i in trange(0,len(waypoint_dataset),args.batch_size):
             print('epoch: %d, training... path: %d' % (epoch, i+1))
             waypoint_dataset_i = waypoint_dataset[i:i+args.batch_size]
@@ -232,8 +236,31 @@ def main(args):
                 val_loss_gen_avg = 0.
                 val_loss_kl_avg = 0.
                 val_loss_avg_i = 0
+
+        # do a validation test using 2048 samples
+        smpnet.eval()
+        epoch_val_num = 2048
+        waypoint_dataset_i = val_waypoint_dataset[:epoch_val_num]
+        start_indices_i, goal_indices_i, env_indices_i = val_start_indices[:epoch_val_num], \
+                                                        val_goal_indices[:epoch_val_num], \
+                                                        val_env_indices[:epoch_val_num]
+        bi = waypoint_dataset_i
+        bi = torch.FloatTensor(bi)
+        bi = normalize(bi, args.world_size)
+        bi=to_var(bi)
+        y_start_i = start_dataset[start_indices_i]
+        y_goal_i = goal_dataset[goal_indices_i]
+        y_start_i, y_goal_i = torch.FloatTensor(y_start_i), torch.FloatTensor(y_goal_i)
+        y_start_i, y_goal_i = normalize(y_start_i, args.world_size), normalize(y_goal_i, args.world_size)
+        y_start_i, y_goal_i = to_var(y_start_i), to_var(y_goal_i)
+        bobs = obs[env_indices_i].astype(np.float32)
+        bobs = torch.FloatTensor(bobs)
+        bobs = to_var(bobs)
+        loss = smpnet.loss(bi, smpnet.train_forward(bi, y_start_i, y_goal_i, bobs), beta=args.beta)
+        loss = torch.mean(loss)
+        scheduler.step(loss)
         # Save the models
-        if epoch > 0 and epoch % 50 == 0:
+        if epoch > 0 and epoch % 1 == 0:
             model_path='smpnet_epoch_%d.pkl' %(epoch)
             save_state(smpnet, torch_seed, np_seed, py_seed, os.path.join(model_dir,model_path))
     writer.export_scalars_to_json("./all_scalars.json")
@@ -254,6 +281,9 @@ parser.add_argument('--cond_size', type=int, default=6+28, help='dimension of co
 
 parser.add_argument('--learning_rate', type=float, default=0.001)
 parser.add_argument('--beta', type=float, default=1.0, help='scale the KL divergence loss relative to reconstruction loss')
+
+parser.add_argument('--lr_schedule_gamma', type=float, default=0.8)
+parser.add_argument('--lr_schedule_patience', type=int, default=2)
 
 parser.add_argument('--device', type=int, default=0, help='cuda device')
 
