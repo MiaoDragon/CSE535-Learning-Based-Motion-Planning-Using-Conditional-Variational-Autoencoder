@@ -1,2 +1,4 @@
 **/*.png
 **/data/**
+**/result/**
+**/train_stats/**
