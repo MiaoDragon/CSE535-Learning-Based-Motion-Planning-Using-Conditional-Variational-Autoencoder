@@ -128,6 +128,7 @@ def main(args):
     val_loss_gen_avg = 0.
     val_loss_kl_avg = 0.
     loss_steps = 100  # record every 100 loss
+    prev_epoch_val_loss = None
     for epoch in trange(args.start_epoch+1,args.num_epochs+1):
         print('epoch' + str(epoch))
         val_i = 0
@@ -259,6 +260,13 @@ def main(args):
         loss = smpnet.loss(bi, smpnet.train_forward(bi, y_start_i, y_goal_i, bobs), beta=args.beta)
         loss = torch.mean(loss)
         scheduler.step(loss)
+        if prev_epoch_val_loss is not None and (loss.cpu().item() - prev_epoch_val_loss) / prev_epoch_val_loss >= .5:
+            # when the loss increases too much that the difference is larger than ratio * prev_epoch_val_loss
+            # we early stop without saving for this epoch
+            print('early stop with epoch vaildation loss: %f, previous loss: %f' % (loss.cpu().item(), prev_epoch_val_loss))
+            break
+        prev_epoch_val_loss = loss.cpu().item()
+        
         # Save the models
         if epoch > 0 and epoch % 1 == 0:
             model_path='smpnet_epoch_%d.pkl' %(epoch)
