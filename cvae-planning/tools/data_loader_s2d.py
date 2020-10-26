@@ -106,140 +106,55 @@ def load_train_dataset(N, NP, data_folder):
                     env_indices.append(i)
     return waypoint_dataset, start_dataset, goal_dataset, obs, start_indices, goal_indices, env_indices
 
-def load_test_dataset(N, NP, data_folder, obs_f=None, s=0, sp=0):
-    # obtain the generated paths, and transform into
-    # (obc, dataset, targets, env_indices)
-    # return list NOT NUMPY ARRAY
-    ## TODO: add different folders for obstacle information and path
-    # transform paths into dataset and targets
-    # (xt, xT), x_{t+1}
+def load_test_dataset(N=100,NP=200, s=0,sp=4000, folder='../data/s2d/'):
+    obc=np.zeros((N,7,2),dtype=np.float32)
+    temp=np.fromfile(folder+'obs.dat')
+    obs=temp.reshape(len(temp)//2,2)
 
-    # load obs and obc (obc: obstacle point cloud)
-    if obs_f is None:
-        obs = None
-        obc = None
-        obs_list = None
-        obc_list = None
-    else:
-        obs_list = []
-        obc_list = []
-        for i in range(s,s+N):
-            file = open(data_folder+'obs_%d.pkl' % (i), 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            obs = p.load()
-            #obs = pickle.load(file)
-            file = open(data_folder+'obc_%d.pkl' % (i), 'rb')
-            #obc = pickle.load(file)
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            obc = p.load()
-            # concatenate on the first direction (each obs has a different index)
-            obc = obc.reshape(-1, 2)
-            obs_list.append(obs)
-            obc_list.append(obc)
-        obc_list = np.array(obc_list)
-        obc_list = pcd_to_voxel2d(obc_list, voxel_size=[32,32]).reshape(-1,1,32,32)
+    temp=np.fromfile(folder+'obs_perm2.dat',np.int32)
+    perm=temp.reshape(77520,7)
 
-    path_env = []
-    path_length_env = []
-    control_env = []
-    cost_env = []
-    sg_env = []
-    
-    
-    
-    
-    path_nums = []
+    ## loading obstacles
+    for i in range(0,N):
+        for j in range(0,7):
+            for k in range(0,2):
+                obc[i][j][k]=obs[perm[i+s][j]][k]
+    obs = []
+    k=0
+    for i in range(s,s+N):
+        temp=np.fromfile(folder+'obs_cloud/obc'+str(i)+'.dat')
+        obs.append(temp)
+    obs = np.array(obs).reshape(len(obs),-1,2)
+    obs = pcd_to_voxel2d(obs, voxel_size=[32,32]).reshape(-1,1,32,32)
 
-    for i in range(s,N+s):
-        paths = []
-        path_lengths = []
-        costs = []
-        controls = []
-        sgs = []
-        
-        correct_paths = []
-        correct_costs = []
-        correct_controls = []
-        
-        
-        for j in range(sp,NP+sp):
-            dir = data_folder+str(i)+'/'
-            path_file = dir+'path_%d' %(j) + ".pkl"
-            control_file = dir+'control_%d' %(j) + ".pkl"
-            cost_file = dir+'cost_%d' %(j) + ".pkl"
-            time_file = dir+'time_%d' %(j) + ".pkl"
-            sg_file = dir+'start_goal_%d' % (j) + '.pkl'
-            file = open(sg_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            sg = p.load()
-            sgs.append(sg)
-            file = open(path_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            p = p.load()
-            paths.append(p)
-            path_lengths.append(len(p))
-            file = open(control_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            p = p.load()
-            controls.append(p)
-            file = open(cost_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            p = p.load()
-            costs.append(p)
+    ## calculating length of the longest trajectory
+    max_length=0
+    path_lengths=np.zeros((N,NP),dtype=np.int8)
+    for i in range(0,N):
+        for j in range(0,NP):
+            fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'
+            if os.path.isfile(fname):
+                path=np.fromfile(fname)
+                path=path.reshape(len(path)//2,2)
+                path_lengths[i][j]=len(path)
+                if len(path)> max_length:
+                    max_length=len(path)
 
 
-            
-            """
-            path_file = dir+'path_corrected_%d' %(j) + ".pkl"
-            control_file = dir+'control_corrected_%d' %(j) + ".pkl"
-            cost_file = dir+'cost_corrected_%d' %(j) + ".pkl"
-            file = open(path_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            p = p.load()
-            correct_paths.append(p)
-            file = open(control_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            p = p.load()
-            correct_controls.append(p)
-            file = open(cost_file, 'rb')
-            p = pickle._Unpickler(file)
-            p.encoding = 'latin1'
-            p = p.load()
-            correct_costs.append(p)
-            # compare cost
-            path_nums.append(int(np.round(np.sum(costs[-1])/0.002)))
-            print('correct cost: ', np.array(correct_costs[-1]).shape)
-            print('cost: ', np.array(costs[-1]).shape)
-            #print('correct cost: ', np.sum(correct_costs[-1]))
-            #print('cost: ', np.sum(costs[-1]))
-            #print('difference: ', np.sum(correct_costs[-1])-np.sum(costs[-1]))
-            
-            #if np.abs(np.sum(correct_costs[-1])-np.sum(costs[-1])) > 0.:
-            #    return
-            """
-            
-            
-            
-            
-            
-        path_env.append(paths)
-        path_length_env.append(path_lengths)
-        control_env.append(controls)
-        cost_env.append(costs)
-        sg_env.append(sgs)
-    if obs_list is not None:
-        obs_list = np.array(obs_list)
-        obc_list = np.array(obc_list)
-        
-    return obc_list, obs_list, path_env, sg_env, path_length_env, control_env, cost_env
+    paths=np.zeros((N,NP,max_length,2), dtype=np.float32)   ## padded paths
+
+    for i in range(0,N):
+        for j in range(0,NP):
+            fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'
+            if os.path.isfile(fname):
+                path=np.fromfile(fname)
+                path=path.reshape(len(path)//2,2)
+                for k in range(0,len(path)):
+                    paths[i][j][k]=path[k]
+
+    # obc: obstacle center
+    # obs: obstacle point cloud
+    return obc,obs,paths,path_lengths
 
 
 

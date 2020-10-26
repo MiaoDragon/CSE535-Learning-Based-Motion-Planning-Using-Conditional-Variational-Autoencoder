@@ -29,7 +29,7 @@ class SMPNet(nn.Module):
         if obs_z is None:
             obs_z = self.e_net(obs)
         cond = torch.cat([x_start, x_goal, obs_z], 1)
-        return self.cvae_gen_forward(cond)
+        return self.cvae.gen_forward(cond)
 
     def loss(self, x, forward_output, beta=1.0):
         z_mu,z_log_sigma_pow2, z, x_mu = forward_output
