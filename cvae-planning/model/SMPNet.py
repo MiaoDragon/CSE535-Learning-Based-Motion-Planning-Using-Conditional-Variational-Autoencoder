@@ -19,10 +19,10 @@ class SMPNet(nn.Module):
         else:
             self.opt = opt(list(self.e_net.parameters())+list(self.cvae.parameters()), lr=lr, momentum=momentum)
 
-    def train_forward(self, x, x_start, x_goal, obs):
+    def train_forward(self, x, x_start, x_goal, obs, L=10):
         obs_z = self.e_net(obs)
         cond = torch.cat([x_start, x_goal, obs_z], 1)
-        return self.cvae.train_forward(x, cond)
+        return self.cvae.train_forward(x, cond, L=L)
 
     def gen_forward(self, x_start, x_goal, obs=None, obs_z=None):
         assert(obs is not None or obs_z is not None)
@@ -49,11 +49,11 @@ class SMPNet(nn.Module):
         kl_divergence = self.cvae.encoder.kl_divergence(z_mu, z_log_sigma_pow2).unsqueeze(1)
         return kl_divergence
 
-    def step(self, x, x_start, x_goal, obs, beta=1.0):
+    def step(self, x, x_start, x_goal, obs, beta=1.0, L=10):
         # given a batch of data, optimize the parameters by one gradient descent step
         # assume here x and y are torch tensors, and have been
         self.zero_grad()
         # edited: loss now returns a D dimension vector recording loss on each input dimension
-        loss = torch.mean(self.loss(x, self.train_forward(x, x_start, x_goal, obs), beta=beta))
+        loss = torch.mean(self.loss(x, self.train_forward(x, x_start, x_goal, obs, L=L), beta=beta))
         loss.backward()
         self.opt.step()

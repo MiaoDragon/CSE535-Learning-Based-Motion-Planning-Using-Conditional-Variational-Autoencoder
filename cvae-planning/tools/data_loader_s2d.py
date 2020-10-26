@@ -67,7 +67,7 @@ def load_train_dataset(N, NP, s, sp, data_folder):
     path_lengths=np.zeros((N,NP),dtype=np.int8)
     for i in range(0,N):
         for j in range(0,NP):
-            fname=folder+'e'+str(i)+'/path'+str(j+sp)+'.dat'
+            fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'
             if os.path.isfile(fname):
                 path=np.fromfile(fname)
                 path=path.reshape(len(path)//2,2)
@@ -76,7 +76,6 @@ def load_train_dataset(N, NP, s, sp, data_folder):
                     max_length=len(path)
 
     paths=np.zeros((N,NP,max_length,2))   ## padded paths
-
     for i in range(0,N):
         for j in range(0,NP):
             fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'

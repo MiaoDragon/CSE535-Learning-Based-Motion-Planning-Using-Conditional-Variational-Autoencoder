@@ -45,10 +45,8 @@ def main(args):
     normalize = plan_util.normalize
     
     smpnet = SMPNet(e_net, cvae)
-    model_dir = args.model_dir + "%s/model_%d/latent_%d_cond_%d_lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f/" % \
-                                (args.env_type, args.model_id, 
-                                 args.latent_size, args.cond_size, args.learning_rate, \
-                                 args.lr_schedule_gamma, args.lr_schedule_patience, args.opt, args.beta)
+    model_dir = args.model_dir + '%s/model_%d/param_%s/' % (args.env_type, args.model_id, args.param_name)
+
     if not os.path.exists(model_dir):
         os.makedirs(model_dir, exist_ok=True)
     model_path='smpnet_epoch_%d.pkl' %(args.start_epoch)
@@ -128,14 +126,11 @@ def main(args):
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(smpnet.opt, mode='min', \
                                         factor=args.lr_schedule_gamma, patience=args.lr_schedule_patience, verbose=True)
-
+    early_stop_checker = EarlyStopChecker(args.early_stop_freq, args.early_stop_patience)
     # Train the Models
     print('training...')
 
-    writer_fname = 'env_%s_model_%d_latent_%d_cond_%d_lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f' % \
-                    (args.env_type, args.model_id, \
-                     args.latent_size, args.cond_size, args.learning_rate, \
-                     args.lr_schedule_gamma, args.lr_schedule_patience, args.opt, args.beta)
+    writer_fname = 'env_%s_param_%s' % (args.env_type, args.param_name)
 
     writer = SummaryWriter('./train_stats/'+writer_fname)
     record_i = 0
@@ -150,7 +145,8 @@ def main(args):
     val_loss_avg = 0.
     val_loss_gen_avg = 0.
     val_loss_kl_avg = 0.
-    loss_steps = 100  # record every 100 loss
+    loss_steps = args.log_steps
+    save_steps = args.save_steps
     prev_epoch_val_loss = None
     for epoch in trange(args.start_epoch+1,args.num_epochs+1):
         print('epoch' + str(epoch))
@@ -246,7 +242,7 @@ def main(args):
 
             val_loss_avg_i += 1
             if val_loss_avg_i >= loss_steps:
-                val_loss_avg = val_loss_avg / val_loss_avg_i
+                val_loss_avg = val_loss_avg / val_loss_avg_i                
                 val_loss_gen_avg = val_loss_gen_avg / val_loss_avg_i
                 val_loss_kl_avg = val_loss_kl_avg / val_loss_avg_i
                 writer.add_scalar('val_loss', torch.mean(val_loss_avg), val_record_i)
@@ -256,11 +252,29 @@ def main(args):
                     writer.add_scalar('val_loss_%d' % (val_loss_i), val_loss_avg[val_loss_i], val_record_i)
                     writer.add_scalar('val_loss_generation_%d' % (val_loss_i), val_loss_gen_avg[val_loss_i], val_record_i)
 
+                # check early stop using average loss
+                early_stopping = early_stop_checker.early_stop_check(torch.mean(val_loss_avg).item())
+                if early_stopping:
+                    # store model and just exit
+                    # Save the models
+                    if epoch > 0 and epoch % 1 == 0:
+                        model_path='smpnet_epoch_%d_iter_%d.pkl' %(epoch, int(i/args.batch_size))
+                        save_state(smpnet, torch_seed, np_seed, py_seed, os.path.join(model_dir,model_path))
+                    writer.export_scalars_to_json("./all_scalars.json")
+                    writer.close()          
+                    return          
+
                 val_record_i += 1
                 val_loss_avg = 0.
                 val_loss_gen_avg = 0.
                 val_loss_kl_avg = 0.
                 val_loss_avg_i = 0
+
+            # save model after certain steps
+            if int(i/args.batch_size) % save_steps == 0:
+                model_path='smpnet_epoch_%d_iter_%d.pkl' %(epoch, int(i/args.batch_size))
+                save_state(smpnet, torch_seed, np_seed, py_seed, os.path.join(model_dir,model_path))
+
 
         # do a validation test using 2048 samples
         smpnet.eval()
@@ -298,39 +312,25 @@ def main(args):
             save_state(smpnet, torch_seed, np_seed, py_seed, os.path.join(model_dir,model_path))
     writer.export_scalars_to_json("./all_scalars.json")
     writer.close()
+
+
+
+##############################################################################
+import yaml
+# try:
+#     from yaml import CLoader as Loader, CDumper as Dumper
+# except ImportError:
+#     from yaml import Loader, Dumper
+
 parser = argparse.ArgumentParser()
 # for training
-parser.add_argument('--model_dir', type=str, default='/media/arclabdl1/HD1/YLmiao/results/KMPnet_res/',help='path for saving trained models')
-parser.add_argument('--no_env', type=int, default=100,help='directory for obstacle images')
-parser.add_argument('--no_motion_paths', type=int,default=4000,help='number of optimal paths in each environment')
-parser.add_argument('--val_ratio', type=float, default=0.1)
+parser.add_argument('--param_path', type=str, default='param/train/',help='path for loading training param')
+parser.add_argument('--param_name', type=str, default="cvae_s2d_param1.yaml")
 
-# Model parameters
-parser.add_argument('--e_net_input_size', type=int, default=32, help='dimension of environment encoding network input')
-parser.add_argument('--e_net_output_size', type=int, default=28, help='dimension of environment encoding network output')
-parser.add_argument('--model_id', type=int, default=0, help='id of the model that we are using')
-
-parser.add_argument('--input_size', type=int, default=3, help='dimension of input to be reconstructed')
-parser.add_argument('--latent_size', type=int, default=28, help='dimension of latent variable')
-parser.add_argument('--cond_size', type=int, default=6+28, help='dimension of condition variable (start, goal, environment encoding)')
-
-parser.add_argument('--learning_rate', type=float, default=0.001)
-parser.add_argument('--beta', type=float, default=1.0, help='scale the KL divergence loss relative to reconstruction loss')
-
-parser.add_argument('--lr_schedule_gamma', type=float, default=0.8)
-parser.add_argument('--lr_schedule_patience', type=int, default=2)
-
-parser.add_argument('--device', type=int, default=0, help='cuda device')
-
-parser.add_argument('--num_epochs', type=int, default=500)
-parser.add_argument('--batch_size', type=int, default=100, help='rehersal on how many data (not path)')
-parser.add_argument('--data_folder', type=str, default='../data/simple/')
-
-parser.add_argument('--start_epoch', type=int, default=0)
-parser.add_argument('--env_type', type=str, default='s2d', help='environment')
-parser.add_argument('--world_size', nargs='+', type=float, default=20., help='boundary of world')
-parser.add_argument('--opt', type=str, default='Adam')
-
+# parse the parameter file
 args = parser.parse_args()
 print(args)
-main(args)
+param_f = open(args.param_path+args.param_name, 'r')
+param = yaml.load(param_f)
+param = DictDot(param)
+main(param)

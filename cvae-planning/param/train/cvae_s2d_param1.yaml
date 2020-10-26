@@ -1,0 +1,41 @@
+---
+model_dir: "/ilab/users/ym420/Documents/ylmiao/results/SMPNet/"
+data_folder: "/freespace/local/ym420/course/cse535/data/"
+env_type: "s2d"
+
+no_env: 100
+no_motion_paths: 4000
+val_ratio: 0.1
+
+# network structure
+e_net_input_size: 32
+e_net_output_size: 28
+input_size: 2
+latent_size: 2
+cond_size: 32
+model_id: 1
+
+# loss
+beta: 0.001
+L: 1
+
+# training hyperparameter
+learning_rate: 0.00001
+lr_schedule_gamma: 0.5
+lr_schedule_patience: 0
+early_stop_freq: 1  # every how many times we evaluate early stopping
+early_stop_patience: 10  # how many times val loss goes up
+num_epochs: 100
+batch_size: 256
+start_epoch: 0
+world_size: [20.0, 20.0]
+
+# logging
+log_steps: 100
+save_steps: 1000
+
+device: 0
+opt: "Adam"
+
+param_name: 1
+
