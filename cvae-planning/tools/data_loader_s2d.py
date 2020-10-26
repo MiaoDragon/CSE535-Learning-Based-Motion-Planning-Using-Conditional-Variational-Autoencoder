@@ -51,13 +51,13 @@ def preprocess(data_path, data_control, data_cost, dynamics, enforce_bounds, sys
     #state[-1] = data_path[-1]
     return state, control, cost
 
-def load_train_dataset(N, NP, data_folder):
+def load_train_dataset(N, NP, s, sp, data_folder):
     folder = data_folder
     obs = []
     # add start s
     for i in range(0,N):
         #load obstacle point cloud
-        temp=np.fromfile(folder+'obs_cloud/obc'+str(i)+'.dat')
+        temp=np.fromfile(folder+'obs_cloud/obc'+str(i+s)+'.dat')
         obs.append(temp)
     obs = np.array(obs).reshape(len(obs),-1,2)
     obs = pcd_to_voxel2d(obs, voxel_size=[32,32]).reshape(-1,1,32,32)
@@ -67,7 +67,7 @@ def load_train_dataset(N, NP, data_folder):
     path_lengths=np.zeros((N,NP),dtype=np.int8)
     for i in range(0,N):
         for j in range(0,NP):
-            fname=folder+'e'+str(i)+'/path'+str(j)+'.dat'
+            fname=folder+'e'+str(i)+'/path'+str(j+sp)+'.dat'
             if os.path.isfile(fname):
                 path=np.fromfile(fname)
                 path=path.reshape(len(path)//2,2)
@@ -79,7 +79,7 @@ def load_train_dataset(N, NP, data_folder):
 
     for i in range(0,N):
         for j in range(0,NP):
-            fname=folder+'e'+str(i)+'/path'+str(j)+'.dat'
+            fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'
             if os.path.isfile(fname):
                 path=np.fromfile(fname)
                 path=path.reshape(len(path)//2,2)

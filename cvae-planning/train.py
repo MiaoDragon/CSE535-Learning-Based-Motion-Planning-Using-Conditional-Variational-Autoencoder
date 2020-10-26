@@ -45,8 +45,9 @@ def main(args):
     normalize = plan_util.normalize
     
     smpnet = SMPNet(e_net, cvae)
-    model_dir = args.model_dir + "%s/model_%d/lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f/" % \
-                                (args.env_type, args.model_id, args.learning_rate, \
+    model_dir = args.model_dir + "%s/model_%d/latent_%d_cond_%d_lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f/" % \
+                                (args.env_type, args.model_id, 
+                                 args.latent_size, args.cond_size, args.learning_rate, \
                                  args.lr_schedule_gamma, args.lr_schedule_patience, args.opt, args.beta)
     if not os.path.exists(model_dir):
         os.makedirs(model_dir, exist_ok=True)
@@ -77,9 +78,10 @@ def main(args):
 
     # load train and test data
     print('loading...')
+    val_sp = int(args.no_motion_paths * (1-args.val_ratio))
     data_folder = args.data_folder+args.env_type+'/'
     waypoint_dataset, start_dataset, goal_dataset, obs, start_indices, goal_indices, env_indices \
-             = data_loader.load_train_dataset(N=args.no_env, NP=args.no_motion_paths,
+             = data_loader.load_train_dataset(N=args.no_env, NP=val_sp, s=0, sp=0,
                                                 data_folder=data_folder)
     start_dataset, goal_dataset = np.array(start_dataset), np.array(goal_dataset)
 
@@ -94,15 +96,35 @@ def main(args):
     waypoint_dataset = np.array(waypoint_dataset)
     start_indices, goal_indices, env_indices = np.array(start_indices), np.array(goal_indices), np.array(env_indices)
 
-    # use 5% as validation dataset
-    val_len = int(len(waypoint_dataset) * 0.05)
-    val_waypoint_dataset = waypoint_dataset[-val_len:]
-    val_start_indices = start_indices[-val_len:]
-    val_goal_indices = goal_indices[-val_len:]
-    val_env_indices = env_indices[-val_len:]
+    # validation dataset
+    val_waypoint_dataset, val_start_dataset, val_goal_dataset, val_obs, val_start_indices, val_goal_indices, val_env_indices \
+             = data_loader.load_train_dataset(N=args.no_env, NP=args.no_motion_paths-val_sp+1, s=0, sp=val_sp,
+                                              data_folder=data_folder)
+    val_start_dataset, val_goal_dataset = np.array(val_start_dataset), np.array(val_goal_dataset)
 
-    waypoint_dataset = waypoint_dataset[:-val_len]
-    start_indices, goal_indices, env_indices = start_indices[:-val_len], goal_indices[:-val_len], env_indices[:-val_len]
+    # randomize the dataset before training
+    data=list(zip(val_waypoint_dataset, val_start_indices, val_goal_indices, val_env_indices))
+    random.shuffle(data)
+    val_waypoint_dataset,val_start_indices,val_goal_indices,val_env_indices=list(zip(*data))
+    val_waypoint_dataset = list(val_waypoint_dataset)
+    val_start_indices = list(val_start_indices)
+    val_goal_indices = list(val_goal_indices)
+    val_env_indices = list(val_env_indices)
+    val_waypoint_dataset = np.array(val_waypoint_dataset)
+    val_start_indices, val_goal_indices, val_env_indices = \
+        np.array(val_start_indices), np.array(val_goal_indices), np.array(val_env_indices)
+    val_len = len(val_waypoint_dataset)
+
+
+    # # use 5% as validation dataset
+    # val_len = int(len(waypoint_dataset) * 0.05)
+    # val_waypoint_dataset = waypoint_dataset[-val_len:]
+    # val_start_indices = start_indices[-val_len:]
+    # val_goal_indices = goal_indices[-val_len:]
+    # val_env_indices = env_indices[-val_len:]
+
+    # waypoint_dataset = waypoint_dataset[:-val_len]
+    # start_indices, goal_indices, env_indices = start_indices[:-val_len], goal_indices[:-val_len], env_indices[:-val_len]
 
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(smpnet.opt, mode='min', \
                                         factor=args.lr_schedule_gamma, patience=args.lr_schedule_patience, verbose=True)
@@ -110,8 +132,9 @@ def main(args):
     # Train the Models
     print('training...')
 
-    writer_fname = 'env_%s_model_%d_lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f' % \
-                    (args.env_type, args.model_id, args.learning_rate, \
+    writer_fname = 'env_%s_model_%d_latent_%d_cond_%d_lr_%f_lrgamma_%f_lrpatience_%d_opt_%s_beta_%f' % \
+                    (args.env_type, args.model_id, \
+                     args.latent_size, args.cond_size, args.learning_rate, \
                      args.lr_schedule_gamma, args.lr_schedule_patience, args.opt, args.beta)
 
     writer = SummaryWriter('./train_stats/'+writer_fname)
@@ -132,8 +155,8 @@ def main(args):
     for epoch in trange(args.start_epoch+1,args.num_epochs+1):
         print('epoch' + str(epoch))
         val_i = 0
-        smpnet.train()
         for i in trange(0,len(waypoint_dataset),args.batch_size):
+            smpnet.train()
             print('epoch: %d, training... path: %d' % (epoch, i+1))
             waypoint_dataset_i = waypoint_dataset[i:i+args.batch_size]
             start_indices_i, goal_indices_i, env_indices_i = start_indices[i:i+args.batch_size], goal_indices[i:i+args.batch_size], env_indices[i:i+args.batch_size]
@@ -189,6 +212,7 @@ def main(args):
 
             # validation
             # calculate the corresponding batch in val_dataset
+            smpnet.eval()
             waypoint_dataset_i = val_waypoint_dataset[val_i:val_i+args.batch_size]
             start_indices_i, goal_indices_i, env_indices_i = val_start_indices[val_i:val_i+args.batch_size], \
                                                             val_goal_indices[val_i:val_i+args.batch_size], \
@@ -202,13 +226,13 @@ def main(args):
             bi = normalize(bi, args.world_size)
             bi=to_var(bi)
             
-            y_start_i = start_dataset[start_indices_i]
-            y_goal_i = goal_dataset[goal_indices_i]
+            y_start_i = val_start_dataset[start_indices_i]
+            y_goal_i = val_goal_dataset[goal_indices_i]
             y_start_i, y_goal_i = torch.FloatTensor(y_start_i), torch.FloatTensor(y_goal_i)
             y_start_i, y_goal_i = normalize(y_start_i, args.world_size), normalize(y_goal_i, args.world_size)
             y_start_i, y_goal_i = to_var(y_start_i), to_var(y_goal_i)
 
-            bobs = obs[env_indices_i].astype(np.float32)
+            bobs = val_obs[env_indices_i].astype(np.float32)
             bobs = torch.FloatTensor(bobs)
             bobs = to_var(bobs)
             loss = smpnet.loss(bi, smpnet.train_forward(bi, y_start_i, y_goal_i, bobs), beta=args.beta)
@@ -249,16 +273,17 @@ def main(args):
         bi = torch.FloatTensor(bi)
         bi = normalize(bi, args.world_size)
         bi=to_var(bi)
-        y_start_i = start_dataset[start_indices_i]
-        y_goal_i = goal_dataset[goal_indices_i]
+        y_start_i = val_start_dataset[start_indices_i]
+        y_goal_i = val_goal_dataset[goal_indices_i]
         y_start_i, y_goal_i = torch.FloatTensor(y_start_i), torch.FloatTensor(y_goal_i)
         y_start_i, y_goal_i = normalize(y_start_i, args.world_size), normalize(y_goal_i, args.world_size)
         y_start_i, y_goal_i = to_var(y_start_i), to_var(y_goal_i)
-        bobs = obs[env_indices_i].astype(np.float32)
+        bobs = val_obs[env_indices_i].astype(np.float32)
         bobs = torch.FloatTensor(bobs)
         bobs = to_var(bobs)
         loss = smpnet.loss(bi, smpnet.train_forward(bi, y_start_i, y_goal_i, bobs), beta=args.beta)
         loss = torch.mean(loss)
+        writer.add_scalar('epoch_val_loss', loss, epoch)
         scheduler.step(loss)
         if prev_epoch_val_loss is not None and (loss.cpu().item() - prev_epoch_val_loss) / prev_epoch_val_loss >= .5:
             # when the loss increases too much that the difference is larger than ratio * prev_epoch_val_loss
@@ -278,6 +303,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--model_dir', type=str, default='/media/arclabdl1/HD1/YLmiao/results/KMPnet_res/',help='path for saving trained models')
 parser.add_argument('--no_env', type=int, default=100,help='directory for obstacle images')
 parser.add_argument('--no_motion_paths', type=int,default=4000,help='number of optimal paths in each environment')
+parser.add_argument('--val_ratio', type=float, default=0.1)
+
 # Model parameters
 parser.add_argument('--e_net_input_size', type=int, default=32, help='dimension of environment encoding network input')
 parser.add_argument('--e_net_output_size', type=int, default=28, help='dimension of environment encoding network output')
