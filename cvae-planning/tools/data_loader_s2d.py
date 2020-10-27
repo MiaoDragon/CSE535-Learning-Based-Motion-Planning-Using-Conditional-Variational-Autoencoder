@@ -51,7 +51,7 @@ def preprocess(data_path, data_control, data_cost, dynamics, enforce_bounds, sys
     #state[-1] = data_path[-1]
     return state, control, cost
 
-def load_train_dataset(N, NP, s, sp, data_folder):
+def load_train_dataset(N, NP, s, sp, data_folder, load_dis_ratio=False):
     folder = data_folder
     obs = []
     # add start s
@@ -86,25 +86,41 @@ def load_train_dataset(N, NP, s, sp, data_folder):
                     paths[i][j][k]=path[k]
 
     waypoint_dataset=[]
-    start_indices = []
-    goal_indices = []
-    start_dataset = []
-    goal_dataset = []
+    # start_indices = []
+    # goal_indices = []
+    # start_dataset = []
+    # goal_dataset = []
+    cond_dataset = []
     env_indices=[]
     for i in range(0,N):
         for j in range(0,NP):
             if path_lengths[i][j]>0:
-                start_dataset.append(paths[i][j][0])
-                goal_dataset.append(paths[i][j][path_lengths[i][j]-1])
-                for m in range(0, path_lengths[i][j]-1):
+                # start_dataset.append(paths[i][j][0])
+                # goal_dataset.append(paths[i][j][path_lengths[i][j]-1])
+                if load_dis_ratio:
+                    # calculate distance ratio
+                    total_d = 0.
+                    dist_list = []
+                    for k in range(path_lengths[i][j]-1):
+                        dist_list.append(total_d)
+                        total_d += np.linalg.norm(paths[i][j][k+1] - paths[i][j][k])
+                    dist_list.append(total_d)
+                    dist_list = np.array(dist_list) / total_d  # normalize to 0 - 1
+                    dist_list = dist_list.reshape(-1,1)
+                for m in range(0, path_lengths[i][j]):
                     data = np.array(paths[i][j][m])
                     waypoint_dataset.append(data)
                     # add the recently added one
-                    start_indices.append(len(start_dataset)-1)
-                    goal_indices.append(len(goal_dataset)-1)
+                    if load_dis_ratio:
+                        # add here
+                        cond = np.concatenate([paths[i][j][0], paths[i][j][path_lengths[i][j]-1], dist_list[m]])
+                    else:
+                        cond = np.concatenate([paths[i][j][0], paths[i][j][path_lengths[i][j]-1]])
+                    cond_dataset.append(cond)
+                    # start_indices.append(len(start_dataset)-1)
+                    # goal_indices.append(len(goal_dataset)-1)
                     env_indices.append(i)
-    return waypoint_dataset, start_dataset, goal_dataset, obs, start_indices, goal_indices, env_indices
-
+    return waypoint_dataset, cond_dataset, obs, env_indices
 def load_test_dataset(N=100,NP=200, s=0,sp=4000, folder='../data/s2d/'):
     obc=np.zeros((N,7,2),dtype=np.float32)
     temp=np.fromfile(folder+'obs.dat')

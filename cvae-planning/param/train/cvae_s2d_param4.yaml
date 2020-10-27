@@ -12,12 +12,12 @@ e_net_input_size: 32
 e_net_output_size: 28
 input_size: 2
 latent_size: 2
-cond_size: 32
-model_type: "SMPNet"
-model_id: 1
+cond_size: 33  # 28 + 4 + 1
+model_type: "SMPPathSimpleNet"
+model_id: 3
 
 # loss
-beta: 0.1
+beta: 0.5
 L: 1
 
 # training hyperparameter
@@ -38,5 +38,5 @@ save_steps: 2000
 device: 0
 opt: "Adam"
 
-param_name: 1
+param_name: 4
 

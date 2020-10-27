@@ -5,9 +5,9 @@ import copy
 """
 this defines the MPNet to be used, which will utilize MLP and AE.
 """
-class SMPNet(nn.Module):
+class SMPPathSimpleNet(nn.Module):
     def __init__(self, e_net, cvae):
-        super(SMPNet, self).__init__()
+        super(SMPPathSimpleNet, self).__init__()
         self.e_net = e_net
         self.cvae = cvae
         self.opt = torch.optim.Adagrad(list(self.e_net.parameters())+list(self.cvae.parameters()))
@@ -20,6 +20,7 @@ class SMPNet(nn.Module):
             self.opt = opt(list(self.e_net.parameters())+list(self.cvae.parameters()), lr=lr, momentum=momentum)
 
     def train_forward(self, x, x_cond, obs, L=10):
+        # x_step_dis: ratio of (distance from start) / (distance of trajectory)
         obs_z = self.e_net(obs)
         cond = torch.cat([x_cond, obs_z], 1)
         return self.cvae.train_forward(x, cond, L=L)
@@ -32,21 +33,22 @@ class SMPNet(nn.Module):
         return self.cvae.gen_forward(cond)
 
     def loss(self, x, forward_output, beta=1.0):
-        z_mu,z_log_sigma_pow2, z, x_mu = forward_output
-        kl_divergence = self.cvae.encoder.kl_divergence(z_mu, z_log_sigma_pow2).unsqueeze(1)
+        z, x_mu = forward_output
+        kl_divergence = torch.FloatTensor([0.]).expand(len(x))
         generation_loss = self.cvae.decoder.generation_loss(x, x_mu)
-        loss_i = -generation_loss + beta * kl_divergence.expand(-1,self.cvae.input_size)
+        loss_i = -generation_loss# + beta * kl_divergence.expand(-1,self.cvae.input_size)
         #loss_i = torch.mean(loss_i)
         return loss_i
     
     def generation_loss(self, x, forward_output):
-        z_mu,z_log_sigma_pow2, z, x_mu = forward_output
+        z, x_mu = forward_output
         generation_loss = self.cvae.decoder.generation_loss(x, x_mu)
         return -generation_loss
 
     def kl_divergence(self, x, forward_output):
-        z_mu,z_log_sigma_pow2, z, x_mu = forward_output
-        kl_divergence = self.cvae.encoder.kl_divergence(z_mu, z_log_sigma_pow2).unsqueeze(1)
+        #z_mu,z_log_sigma_pow2, z, x_mu = forward_output
+        #kl_divergence = self.cvae.encoder.kl_divergence(z_mu, z_log_sigma_pow2).unsqueeze(1)
+        kl_divergence = torch.FloatTensor([0.]).expand(len(x))
         return kl_divergence
 
     def step(self, x, x_cond, obs, beta=1.0, L=10):

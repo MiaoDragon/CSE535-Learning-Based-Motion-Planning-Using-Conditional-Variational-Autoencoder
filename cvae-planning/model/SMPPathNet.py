@@ -5,9 +5,9 @@ import copy
 """
 this defines the MPNet to be used, which will utilize MLP and AE.
 """
-class SMPNet(nn.Module):
+class SMPPathNet(nn.Module):
     def __init__(self, e_net, cvae):
-        super(SMPNet, self).__init__()
+        super(SMPPathNet, self).__init__()
         self.e_net = e_net
         self.cvae = cvae
         self.opt = torch.optim.Adagrad(list(self.e_net.parameters())+list(self.cvae.parameters()))
@@ -20,6 +20,7 @@ class SMPNet(nn.Module):
             self.opt = opt(list(self.e_net.parameters())+list(self.cvae.parameters()), lr=lr, momentum=momentum)
 
     def train_forward(self, x, x_cond, obs, L=10):
+        # x_step_dis: ratio of (distance from start) / (distance of trajectory)
         obs_z = self.e_net(obs)
         cond = torch.cat([x_cond, obs_z], 1)
         return self.cvae.train_forward(x, cond, L=L)
