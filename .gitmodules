@@ -1,0 +1,3 @@
+[submodule "FasterRobusterMotionPlanningLibrary"]
+	path = FasterRobusterMotionPlanningLibrary
+	url = https://github.com/MiaoDragon/FasterRobusterMotionPlanningLibrary
