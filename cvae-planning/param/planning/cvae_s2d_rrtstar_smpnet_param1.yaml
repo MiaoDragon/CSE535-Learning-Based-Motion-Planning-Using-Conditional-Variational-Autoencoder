@@ -1,0 +1,59 @@
+---
+model_dir: "/common/users/ym420/results/SMPNet/"
+data_folder: "/freespace/local/ym420/course/cse535/data/"
+env_type: "s2d"
+
+no_env: 110
+no_motion_paths: 200
+val_ratio: 0.1
+
+# network structure
+e_net_input_size: 32
+e_net_output_size: 28
+input_size: 2
+latent_size: 2
+cond_size: 33  # 28 + 4 + 1
+model_type: "SMPPathWithPriorNet"
+model_id: 2
+
+# loss
+beta: 0.5
+L: 1
+
+# training hyperparameter
+learning_rate: 0.00001
+lr_schedule_gamma: 0.5
+lr_schedule_patience: 0
+early_stop_freq: 1  # every how many times we evaluate early stopping
+early_stop_patience: 10  # how many times val loss goes up
+num_epochs: 100
+batch_size: 256
+start_epoch: 18
+world_size: [20.0, 20.0]
+
+# logging
+log_steps: 100
+save_steps: 2000
+
+device: 0
+opt: "Adam"
+
+param_name: 3
+
+
+# for planning
+s: 0
+sp: 4000
+planner_type: rrtstar
+nearest_neighbor: naive_nearest_neighbor
+plan_struct_type: plan_tree
+sample_type: smpnet
+max_iter: 200
+
+eps: 0.01
+d_goal: 0.1  # radius of goal region
+plan_param: {"radius": 20., "goal_bias": 0.1}
+
+# debug
+visual: False
+result_folder: "/common/users/ym420/results/SMPNet/test/"
