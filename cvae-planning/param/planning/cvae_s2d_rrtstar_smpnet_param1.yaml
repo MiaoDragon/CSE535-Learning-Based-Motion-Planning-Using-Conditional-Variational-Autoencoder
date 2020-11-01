@@ -3,8 +3,8 @@ model_dir: "/common/users/ym420/results/SMPNet/"
 data_folder: "/freespace/local/ym420/course/cse535/data/"
 env_type: "s2d"
 
-no_env: 110
-no_motion_paths: 200
+no_env: 10 #110
+no_motion_paths: 200 #50
 val_ratio: 0.1
 
 # network structure
@@ -42,8 +42,8 @@ param_name: 3
 
 
 # for planning
-s: 0
-sp: 4000
+s: 100 #0
+sp: 0 #4000
 planner_type: rrtstar
 nearest_neighbor: naive_nearest_neighbor
 plan_struct_type: plan_tree
