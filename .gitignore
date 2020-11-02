@@ -8,3 +8,4 @@
 **/__pycache__/**
 **/*.pyc
 **/all_scalars.json
+**/.vscode

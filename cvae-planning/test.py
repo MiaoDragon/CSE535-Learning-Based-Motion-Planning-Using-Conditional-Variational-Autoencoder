@@ -3,7 +3,8 @@ This implements the Kinodynamic Planning using MPNet, by using MPNet
 to generate random samples, that will guide the SST algorithm.
 """
 import sys
-sys.path.append('/freespace/local/ym420/course/cse535/CSE535-Learning-Based-Motion-Planning-Using-Conditional-Variational-Autoencoder/FasterRobusterMotionPlanningLibrary/python')
+sys.path.append('../FasterRobusterMotionPlanningLibrary/python')
+#sys.path.append('/freespace/local/ym420/course/cse535/CSE535-Learning-Based-Motion-Planning-Using-Conditional-Variational-Autoencoder/FasterRobusterMotionPlanningLibrary/python')
 #sys.path.append('deps/sparse_rrt')
 sys.path.append('.')
 import torch
