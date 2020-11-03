@@ -122,7 +122,7 @@ def main(args, env_param):
             trial = -1
             while True:
                 trial += 1
-                print('env_id: %d, path_id: %d' % (i, j))
+                #print('env_id: %d, path_id: %d' % (i, j))
                 # generate start and goal
                 start, end = env_sg_gen.start_goal_gen(low, high, collision_checker, env_param['eps'])
                 
@@ -164,7 +164,7 @@ def main(args, env_param):
                 ############Planning##########################3
                 time0 = time.time()
                 #print('obs: %d, path: %d' % (i, j))
-                for iter in trange(env_param['max_iter']):
+                for iter in range(env_param['max_iter']):
                     #print('iteration: %d' % (iter))
                     planner.step()
                     if env_param['visual']:
@@ -246,12 +246,14 @@ if __name__ == "__main__":
             env_param_i = copy.deepcopy(env_param)
             p = Process(target=main, args=(args_i, env_param_i))
             ps.append(p)
+            p.start()
+        print('finished starting processes.')
         try:
-            for i in range(args.N):
-                ps[i].start()
+            for p in ps:
+                p.join()
         except:
             print('terminating child processes...')
-            for i in trange(args.N):
+            for i in range(args.N):
                 ps[i].terminate()
                 ps[i].join()
             print('finished terminate.')            
