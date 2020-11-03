@@ -1,0 +1,26 @@
+---
+env_name: complex_2d
+gen_obs: False
+obs_params: False
+obs_folder: "/home/yinglong/Documents/research/learning_motion_planning/data/motion_planning_datasets/forest/"
+planner_type: informedrrtstar
+nearest_neighbor: naive_nearest_neighbor
+plan_struct_type: plan_tree
+sample_type: uniform_sampler
+x_low: [-10., -10.]
+x_high: [10., 10.]
+plan_env_data: False
+
+
+d_goal: 0.1
+eps: 0.02
+plan_param: {"radius": 10., "goal_bias": 0.1}
+
+
+path_folder: "/home/yinglong/Documents/research/learning_motion_planning/data/motion_planning_datasets/forest/path/"
+max_iter: 1000
+
+round_digit: 1
+
+# debug
+visual: False

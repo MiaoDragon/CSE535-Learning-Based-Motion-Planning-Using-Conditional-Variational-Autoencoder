@@ -256,7 +256,7 @@ def main(args):
                 #print('plan iteration %d...' % (plan_iter))
                 status = planner.step()
                 if args.visual:
-                    fig = plot_and_save(obs_repre[obs_idx], plan_env_data, path_i, plan_struct, path=plot_path)
+                    fig = plot_and_save(planner, obs_repre[obs_idx], plan_env_data, path_i, plan_struct, path=plot_path)
                     plt.savefig(plot_path+'plot_%d.png' % (plan_iter))
                     plt.close(fig)
 

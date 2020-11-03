@@ -3,6 +3,8 @@ using SST* to generate near-optimal paths in specified environment
 """
 import sys
 sys.path.append('../../FasterRobusterMotionPlanningLibrary/python')
+sys.path.append('../../')
+
 import argparse
 import numpy as np
 import time
@@ -11,24 +13,28 @@ import os
 import gc
 from multiprocessing import Process, Queue
 import importlib
+import numpy as np
+from tqdm import tqdm, trange
+
 # environment parameters are stored in param
 
 def main(args, env_param):
     # set up the environment
 
+
     ####################################################################################
-    def plan_one_path(planner, out_queue, path_file, control_file, cost_file, time_file):
+    def plan_one_path(planner, path_file, control_file, cost_file, time_file):
         # generate a path by using SST to plan for some maximal iterations
         time0 = time.time()
         #print('obs: %d, path: %d' % (i, j))
-        for iter in range(args.max_iter):
+        for iter in range(env_param['max_iter']):
             #print('iteration: %d' % (iter))
-            planner.step(env, min_time_steps, max_time_steps, integration_step)
+            planner.step()
 
         solution = planner.get_solution()
         plan_time = time.time() - time0
         if solution is None:
-            out_queue.put(0)
+            return 0
         else:
             print('path succeeded.')
             path, controls, cost = solution
@@ -49,32 +55,32 @@ def main(args, env_param):
             file = open(time_file, 'wb')
             pickle.dump(plan_time, file)
             file.close()
-            out_queue.put(1)
+            return 1
     ####################################################################################
-    queue = Queue(1)
     id_list = []
 
-    env_obs_gen = importlib.import_module('%s_obs_gen' % (args.env_name))
+    env_obs_gen = importlib.import_module('%s_obs_gen' % (env_param['env_name']))
     if env_param['gen_obs']:
         # generate obstacle here
         pass
-        env_obs_gen.obs_gen(env_param['obs_params'], args.obs_folder)
-    obs = env_obs_gen.obs_load(args.obs_folder, args.N, args.s)
+        env_obs_gen.obs_gen(env_param['obs_params'], env_param['obs_folder'])
+    obs = env_obs_gen.obs_load(env_param['obs_folder'], args.N, args.s)
 
     # load sg gen code
-    env_sg_gen = importlib.import_module('%s_sg_gen' % (args.env_name))
+    env_sg_gen = importlib.import_module('%s_sg_gen' % (env_param['env_name']))
 
     # set up planner
     planner_module = importlib.import_module('frmpl.planners.%s' % (env_param['planner_type']))
     nearest_computer_module = importlib.import_module('frmpl.nearest_computer.%s' % (env_param['nearest_neighbor']))
-    plan_utility = importlib.import_module('frmpl.env.%s_utility' % (args.env_name))
+    plan_utility = importlib.import_module('frmpl.env.%s_utility' % (env_param['env_name']))
     plan_struct_module = importlib.import_module('frmpl.planner_structure.%s' % (env_param['plan_struct_type']))
 
     nearest_computer = nearest_computer_module.NearestComputer()
 
-    low = plan_param['x_lower_bound']
-    high = plan_param['x_upper_bound']
-    low = np.array(low), high = np.array(high)
+    low = env_param['x_low']
+    high = env_param['x_high']
+    low = np.array(low)
+    high = np.array(high)
 
     plan_env = plan_utility.Environment(low, high)
 
@@ -90,8 +96,17 @@ def main(args, env_param):
 
     plan_env_data = env_param['plan_env_data']  # representing obs
 
+    if env_param['visual']:
+        import matplotlib.pyplot as plt
+        visual_module = importlib.import_module('cvae-planning.tools.%s_plan_visual' % (env_param['env_name']))
+        plot_and_save = visual_module.plot_and_save
+        make_video = visual_module.make_video
 
-    for i in range(args.N):
+
+    # for checking if start and goal already exists
+    round_digit = env_param['round_digit']
+
+    for i in trange(args.N):
         obs_i = obs[i]
         plan_env.set_obs(obs_i, plan_env_data)
         collision_checker.set_env(plan_env)
@@ -102,17 +117,14 @@ def main(args, env_param):
         times = []
         suc_n = 0
 
-        for j in range(args.NP):
+        for j in trange(args.NP):
             plan_start = time.time()
+            trial = -1
             while True:
+                trial += 1
                 print('env_id: %d, path_id: %d' % (i, j))
-                # randomly sample collision-free start and goal
-                #start = np.random.uniform(low=low, high=high)
-                #end = np.random.uniform(low=low, high=high)
-
-
                 # generate start and goal
-                start, end = env_sg_gen.start_goal_gen(low, high, obs_i)
+                start, end = env_sg_gen.start_goal_gen(low, high, collision_checker, env_param['eps'])
                 
                 # for checking if start-goal pair appeared before
                 start_str = []
@@ -127,25 +139,73 @@ def main(args, env_param):
                     print('same start goal!')
                     continue
 
-                x_start = path_i[0]
-                x_goal = path_i[-1]
+                x_start = start
+                x_goal = end
+
+                if env_param['visual']:
+                    plot_path = "plots/planner/%s/%s/e_%d_p_%d/trial_%d/" % \
+                                (args.env_name, env_param['planner_type'], i+args.s, j+args.sp, trial)
+                    video_path = "video/planner/%s/%s/e_%d_p_%d/trial_%d/" % \
+                                (args.env_name, env_param['planner_type'], i+args.s, j+args.sp, trial)
+                    os.makedirs(plot_path, exist_ok=True)
+                    os.makedirs(video_path, exist_ok=True)
+
                 planner.setup(x_start, x_goal, env_param['d_goal'], plan_env, env_param['eps'], env_param['plan_param'])
 
-
-                dir = args.path_folder+str(i+args.s)+'/'
+                dir = env_param['path_folder']+str(i+args.s)+'/'
                 if not os.path.exists(dir):
                     os.makedirs(dir)
                 path_file = dir+'state'+'_%d'%(j+args.sp) + ".pkl"
-                control_file = 'control'+'_%d'%(j+args.sp) + ".pkl"
-                cost_file = 'cost'+'_%d'%(j+args.sp) + ".pkl"
-                time_file = 'time'+'_%d'%(j+args.sp) + ".pkl"
+                control_file = dir+'control'+'_%d'%(j+args.sp) + ".pkl"
+                cost_file = dir+'cost'+'_%d'%(j+args.sp) + ".pkl"
+                time_file = dir+'time'+'_%d'%(j+args.sp) + ".pkl"
                 sg_file = dir+'start_goal'+'_%d'%(j+args.sp)+".pkl"
-                p = Process(target=plan_one_path, args=(planner, queue, path_file, control_file, cost_file, time_file))
-                p.start()
-                p.join()
-                res = queue.get()
+
+                ############Planning##########################3
+                time0 = time.time()
+                #print('obs: %d, path: %d' % (i, j))
+                for iter in trange(env_param['max_iter']):
+                    #print('iteration: %d' % (iter))
+                    planner.step()
+                    if env_param['visual']:
+                        fig = plot_and_save(planner, obs_i, plan_env_data, [start, end], plan_struct, path=plot_path)
+                        plt.savefig(plot_path+'plot_%d.png' % (iter))
+                        plt.close(fig)
+
+                if env_param['visual']:
+                    make_video(plot_path, video_path)
+
+                path_x = planner.get_solution()
+                plan_time = time.time() - time0
+                if path_x is None:
+                    res = 0
+                else:
+                    print('path succeeded.')
+                    path = path_x
+                    #path, controls, cost = solution  # later implement this part when control is involved
+                    print(path)
+                    path = np.array(path)
+                    #controls = np.array(controls)
+                    #cost = np.array(cost)
+                    cost = np.linalg.norm(path[1:] - path[:-1], axis=1)
+
+                    file = open(path_file, 'wb')
+                    pickle.dump(path, file)
+                    file.close()
+                    #file = open(control_file, 'wb')
+                    #pickle.dump(controls, file)
+                    #file.close()
+                    file = open(cost_file, 'wb')
+                    pickle.dump(cost, file)
+                    file.close()
+                    file = open(time_file, 'wb')
+                    pickle.dump(plan_time, file)
+                    file.close()
+                    res = 1
                 print('obtained result:')
                 print(res)
+
+                ################################################3
                 if res:
                     # plan successful
                     file = open(sg_file, 'wb')
@@ -158,6 +218,7 @@ def main(args, env_param):
                     break
             print('path planning time: %f' % (time.time() - plan_start))
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--env_name', type=str, default='cartpole')
@@ -166,19 +227,23 @@ if __name__ == "__main__":
     parser.add_argument('--s', type=int, default=0)
     parser.add_argument('--sp', type=int, default=0)
     parser.add_argument('--NP', type=int, default=1)
-    # parser.add_argument('--max_iter', type=int, default=10000)
-    # parser.add_argument('--path_folder', type=str, default='./data/cartpole/')
-    # parser.add_argument('--path_file', type=str, default='path')
-    # parser.add_argument('--control_file', type=str, default='control')
-    # parser.add_argument('--cost_file', type=str, default='cost')
-    # parser.add_argument('--time_file', type=str, default='time')
-    # parser.add_argument('--sg_file', type=str, default='start_goal')
-    # parser.add_argument('--obs_file', type=str, default='./data/cartpole/obs.pkl')
-    # parser.add_argument('--obc_file', type=str, default='./data/cartpole/obc.pkl')
+
     args = parser.parse_args()
 
     # load yaml file
     import yaml
+    import copy
     env_param_f = open('param/%s.yaml' % (args.env_name), 'r')
     env_param = yaml.load(env_param_f)
-    main(args, env_param)
+
+    #args_list = []
+    if args.N > 1:
+        for i in range(args.N):
+            args_i = copy.deepcopy(args)
+            args_i.N = 1
+            args_i.s = i + args.s  # offset
+            env_param_i = copy.deepcopy(env_param)
+            p = Process(target=main, args=(args_i, env_param_i))
+            p.start()
+    else:
+        main(args, env_param)

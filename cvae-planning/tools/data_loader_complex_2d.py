@@ -10,10 +10,10 @@ import imageio
 def sample_pcd(img, num_pts=4000, save_path='motion_planning_datasets/forest/train/pcd/', filename='0.npy'):
     # given the pixel img, sample point clouds representing the obs (0 in pixel values)
     # we assume the size of the workspace is [-20,20]^2
-    x_low = -20.
-    x_high = 20.
-    y_low = -20.
-    y_high = 20.
+    x_low = -10.
+    x_high = 10.
+    y_low = -10.
+    y_high = 10.
     # obtain the location for each mesh
     x_step = (x_high - x_low) / img.shape[0]
     y_step = (y_high - y_low) / img.shape[1]
