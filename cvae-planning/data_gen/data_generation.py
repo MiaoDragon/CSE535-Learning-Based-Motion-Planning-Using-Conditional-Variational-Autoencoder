@@ -237,6 +237,7 @@ if __name__ == "__main__":
     env_param = yaml.load(env_param_f)
 
     #args_list = []
+    ps = []
     if args.N > 1:
         for i in range(args.N):
             args_i = copy.deepcopy(args)
@@ -244,6 +245,16 @@ if __name__ == "__main__":
             args_i.s = i + args.s  # offset
             env_param_i = copy.deepcopy(env_param)
             p = Process(target=main, args=(args_i, env_param_i))
-            p.start()
+            ps.append(p)
+        try:
+            for i in range(args.N):
+                ps[i].start()
+        except:
+            print('terminating child processes...')
+            for i in trange(args.N):
+                ps[i].terminate()
+                ps[i].join()
+            print('finished terminate.')            
+
     else:
         main(args, env_param)
