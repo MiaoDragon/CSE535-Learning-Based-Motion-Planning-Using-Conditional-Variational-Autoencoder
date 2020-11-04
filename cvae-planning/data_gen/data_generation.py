@@ -21,42 +21,6 @@ from tqdm import tqdm, trange
 def main(args, env_param):
     # set up the environment
 
-
-    ####################################################################################
-    def plan_one_path(planner, path_file, control_file, cost_file, time_file):
-        # generate a path by using SST to plan for some maximal iterations
-        time0 = time.time()
-        #print('obs: %d, path: %d' % (i, j))
-        for iter in range(env_param['max_iter']):
-            #print('iteration: %d' % (iter))
-            planner.step()
-
-        solution = planner.get_solution()
-        plan_time = time.time() - time0
-        if solution is None:
-            return 0
-        else:
-            print('path succeeded.')
-            path, controls, cost = solution
-            print(path)
-            path = np.array(path)
-            controls = np.array(controls)
-            cost = np.array(cost)
-
-            file = open(path_file, 'wb')
-            pickle.dump(path, file)
-            file.close()
-            file = open(control_file, 'wb')
-            pickle.dump(controls, file)
-            file.close()
-            file = open(cost_file, 'wb')
-            pickle.dump(cost, file)
-            file.close()
-            file = open(time_file, 'wb')
-            pickle.dump(plan_time, file)
-            file.close()
-            return 1
-    ####################################################################################
     id_list = []
 
     env_obs_gen = importlib.import_module('%s_obs_gen' % (env_param['env_name']))
@@ -120,6 +84,16 @@ def main(args, env_param):
         for j in trange(args.NP):
             plan_start = time.time()
             trial = -1
+
+            dir = env_param['path_folder']+str(i+args.s)+'/'
+            if not os.path.exists(dir):
+                os.makedirs(dir)
+            path_file = dir+'state'+'_%d'%(j+args.sp) + ".pkl"
+            control_file = dir+'control'+'_%d'%(j+args.sp) + ".pkl"
+            cost_file = dir+'cost'+'_%d'%(j+args.sp) + ".pkl"
+            time_file = dir+'time'+'_%d'%(j+args.sp) + ".pkl"
+            sg_file = dir+'start_goal'+'_%d'%(j+args.sp)+".pkl"
+
             while True:
                 trial += 1
                 #print('env_id: %d, path_id: %d' % (i, j))
@@ -152,14 +126,6 @@ def main(args, env_param):
 
                 planner.setup(x_start, x_goal, env_param['d_goal'], plan_env, env_param['eps'], env_param['plan_param'])
 
-                dir = env_param['path_folder']+str(i+args.s)+'/'
-                if not os.path.exists(dir):
-                    os.makedirs(dir)
-                path_file = dir+'state'+'_%d'%(j+args.sp) + ".pkl"
-                control_file = dir+'control'+'_%d'%(j+args.sp) + ".pkl"
-                cost_file = dir+'cost'+'_%d'%(j+args.sp) + ".pkl"
-                time_file = dir+'time'+'_%d'%(j+args.sp) + ".pkl"
-                sg_file = dir+'start_goal'+'_%d'%(j+args.sp)+".pkl"
 
                 ############Planning##########################3
                 time0 = time.time()
@@ -236,6 +202,7 @@ if __name__ == "__main__":
     env_param_f = open('param/%s.yaml' % (args.env_name), 'r')
     env_param = yaml.load(env_param_f)
 
+
     #args_list = []
     ps = []
     if args.N > 1:
@@ -244,6 +211,23 @@ if __name__ == "__main__":
             args_i.N = 1
             args_i.s = i + args.s  # offset
             env_param_i = copy.deepcopy(env_param)
+
+
+            for j in range(args.NP):
+                # check if file already exists, stop at the last existing file or 0
+                dir = env_param['path_folder']+str(i+args.s)+'/'
+                if not os.path.exists(dir):
+                    os.makedirs(dir)
+                path_file = dir+'state'+'_%d'%(j+args.sp) + ".pkl"
+                control_file = dir+'control'+'_%d'%(j+args.sp) + ".pkl"
+                cost_file = dir+'cost'+'_%d'%(j+args.sp) + ".pkl"
+                time_file = dir+'time'+'_%d'%(j+args.sp) + ".pkl"
+                sg_file = dir+'start_goal'+'_%d'%(j+args.sp)+".pkl"
+
+                if not os.path.exists(path_file):
+                    break
+            sp = max(args.sp, j-2)  # new sp starts from the last existing file
+            args_i.sp = sp  # update sp to this process
             p = Process(target=main, args=(args_i, env_param_i))
             ps.append(p)
             p.start()
