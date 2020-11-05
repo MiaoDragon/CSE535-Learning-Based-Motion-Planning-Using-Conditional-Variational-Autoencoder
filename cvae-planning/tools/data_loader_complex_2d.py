@@ -29,7 +29,7 @@ def sample_pcd(img, num_pts=4000, save_path='motion_planning_datasets/forest/tra
         xs[xs==img.shape[0]] = xs[xs==img.shape[0]] - 1
         pixel_xy[:,0] = xs
         ys = pixel_xy[:,1]
-        ys[ys==img_shape[1]] = ys[ys==img.shape[1]] - 1
+        ys[ys==img.shape[1]] = ys[ys==img.shape[1]] - 1
         pixel_xy[:,1] = ys
         return pixel_xy
     samples = []
@@ -64,13 +64,22 @@ def load_train_dataset(N, NP, s, sp, data_folder='motion_planning_datasets/fores
     obs_voxel = []
     obs_pcd = []
     for i in range(N):
-        obs_repre_i = imageio.imread(obs_path+'%d.png' % (i+s))
+        obs_repre_i = imageio.imread(obs_folder+'%d.png' % (i+s))
         obs_repre.append(obs_repre_i)
         # can directly use the image as "voxel"
-        obs_voxel_i = np.array(obs_repre_i)
-        obs_voxel_i[obs_voxel_i==0] = 1  # obstacle
-        obs_voxel_i[obs_voxel_i==255] = 0  # non-obstacle
-        obs_voxel.append(np.array([obs_repre_i]))  # add one more dimension
+        obs_voxel_i = np.zeros([3] + list(obs_repre_i.shape)).astype(int)  # first channel: 0,1 map  # second channel: row loc  # third channel: col loc
+        
+        obs_voxel_i[0] = obs_repre_i
+        obs_voxel_i[0,obs_voxel_i[0]==0] = 1  # obstacle
+        obs_voxel_i[0,obs_voxel_i[0]==255] = 0  # non-obstacle
+        # unit testing here: visualize the loaded voxel
+
+        img_indices = np.indices(obs_repre_i.shape)  # return: 2ximgshape
+        obs_voxel_i[1] = img_indices[0]
+        obs_voxel_i[2] = img_indices[1]
+        obs_voxel_i = obs_voxel_i.astype(float)  # result: 3x201x201
+
+        obs_voxel.append(np.array(obs_voxel_i))
 
         # below is useful if using pcd
 
@@ -83,6 +92,8 @@ def load_train_dataset(N, NP, s, sp, data_folder='motion_planning_datasets/fores
         #     obs_pcd_i = sample_pcd(obs_repre_i, num_pts=4000, save_path=pcd_folder, filename='%d.npy' % (i+s))
         #     obs_pcd.append(obs_pcd_i)
 
+    obs_voxel = np.array(obs_voxel)
+    obs_repre = np.array(obs_repre)
 
     # obtain path
     waypoint_dataset = []
@@ -90,14 +101,17 @@ def load_train_dataset(N, NP, s, sp, data_folder='motion_planning_datasets/fores
     env_indices = []
     for i in range(N):
         for j in range(NP):
-            path_filename = path_folder+'%d/%d.npy' % (i+s, j+sp)
-            path = np.load(path_filename) # Nx2 shape
+            path_filename = path_folder+'%d/state_%d.pkl' % (i+s, j+sp)
+            f = open(path_filename, 'rb')
+            path = pickle.load(f)
+            path = np.array(path)
+            #path = np.load(path_filename) # Nx2 shape
             # generate training data
             if load_dis_ratio:
                 # calculate distance ratio
                 total_d = 0.
                 dist_list = []
-                for k in range(len(path-1)):
+                for k in range(len(path)-1):
                     dist_list.append(total_d)
                     total_d += np.linalg.norm(path[k+1] - path[k])
                 dist_list.append(total_d)
@@ -121,117 +135,37 @@ def load_train_dataset(N, NP, s, sp, data_folder='motion_planning_datasets/fores
 
     
 def load_test_dataset(N=100,NP=200, s=0,sp=4000, folder='../data/s2d/'):
-    obc=np.zeros((N,7,2),dtype=np.float32)
-    temp=np.fromfile(folder+'obs.dat')
-    obs=temp.reshape(len(temp)//2,2)
+    #  data_folder: motion_planning_datasets/forest
+    path_folder =  folder + 'path/'  # folder containing all imitation trajectories
+    obs_folder = folder + 'train/'  # we use the training folder as environment
+    pcd_folder = folder + 'train/pcd/'  # folder storing the pcd
+    # check if the pcd exists, if not, create a new one
 
-    temp=np.fromfile(folder+'obs_perm2.dat',np.int32)
-    perm=temp.reshape(77520,7)
+    obs_repre = []
+    obs_voxel = []
+    obs_pcd = []
+    for i in range(N):
+        obs_repre_i = imageio.imread(obs_folder+'%d.png' % (i+s))
+        obs_repre.append(obs_repre_i)
+        # can directly use the image as "voxel"
+        obs_voxel_i = np.array(obs_repre_i)
+        obs_voxel_i[obs_voxel_i==0] = 1  # obstacle
+        obs_voxel_i[obs_voxel_i==255] = 0  # non-obstacle
+        obs_voxel.append(np.array([obs_repre_i]))  # add one more dimension
 
-    ## loading obstacles
+    paths = []
+    path_lengths = np.zeros((N,NP)).astype(int)
     for i in range(0,N):
-        for j in range(0,7):
-            for k in range(0,2):
-                obc[i][j][k]=obs[perm[i+s][j]][k]
-    obs = []
-    k=0
-    for i in range(s,s+N):
-        temp=np.fromfile(folder+'obs_cloud/obc'+str(i)+'.dat')
-        obs.append(temp)
-    obs = np.array(obs).reshape(len(obs),-1,2)
-    obs = pcd_to_voxel2d(obs, voxel_size=[32,32]).reshape(-1,1,32,32)
-
-    ## calculating length of the longest trajectory
-    max_length=0
-    path_lengths=np.zeros((N,NP),dtype=np.int8)
-    for i in range(0,N):
+        paths_env = []
         for j in range(0,NP):
-            fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'
-            if os.path.isfile(fname):
-                path=np.fromfile(fname)
-                path=path.reshape(len(path)//2,2)
-                path_lengths[i][j]=len(path)
-                if len(path)> max_length:
-                    max_length=len(path)
-
-
-    paths=np.zeros((N,NP,max_length,2), dtype=np.float32)   ## padded paths
-
-    for i in range(0,N):
-        for j in range(0,NP):
-            fname=folder+'e'+str(i+s)+'/path'+str(j+sp)+'.dat'
-            if os.path.isfile(fname):
-                path=np.fromfile(fname)
-                path=path.reshape(len(path)//2,2)
-                for k in range(0,len(path)):
-                    paths[i][j][k]=path[k]
-
+            path_filename = path_folder+'%d/state_%d.pkl' % (i+s, j+sp)
+            f = open(path_filename, 'rb')
+            path = pickle.load(f)
+            path = np.array(path)
+            paths_env.append(path)
+            path_lengths[i][j] = len(path)
+        paths.append(paths_env)
     # obc: obstacle center
     # obs: obstacle point cloud
-    return obc,obs,paths,path_lengths
-
-
-
-def pcd_to_voxel2d(points, voxel_size=(24, 24), padding_size=(32, 32)):
-    voxels = [voxelize2d(points[i], voxel_size, padding_size) for i in range(len(points))]
-    # return size: BxV*V*V
-    return np.array(voxels)
-
-def voxelize2d(points, voxel_size=(24, 24), padding_size=(32, 32), resolution=0.05):
-    """
-    Convert `points` to centerlized voxel with size `voxel_size` and `resolution`, then padding zero to
-    `padding_to_size`. The outside part is cut, rather than scaling the points.
-    Args:
-    `points`: pointcloud in 3D numpy.ndarray (shape: N * 3)
-    `voxel_size`: the centerlized voxel size, default (24,24,24)
-    `padding_to_size`: the size after zero-padding, default (32,32,32)
-    `resolution`: the resolution of voxel, in meters
-    Ret:
-    `voxel`:32*32*32 voxel occupany grid
-    `inside_box_points`:pointcloud inside voxel grid
-    """
-    # calculate resolution based on boundary
-    if abs(resolution) < sys.float_info.epsilon:
-        print('error input, resolution should not be zero')
-        return None, None
-
-    """
-    here the point cloud is centerized, and each dimension uses a different resolution
-    """
-    OCCUPIED = 1
-    FREE = 0
-    resolution = [(points[:,i].max() - points[:,i].min()) / voxel_size[i] for i in range(2)]
-    resolution = np.array(resolution)
-    #resolution = np.max(res)
-    # remove all non-numeric elements of the said array
-    points = points[np.logical_not(np.isnan(points).any(axis=1))]
-
-    # filter outside voxel_box by using passthrough filter
-    # TODO Origin, better use centroid?
-    origin = (np.min(points[:, 0]), np.min(points[:, 1]))
-    # set the nearest point as (0,0,0)
-    points[:, 0] -= origin[0]
-    points[:, 1] -= origin[1]
-    #points[:, 2] -= origin[2]
-    # logical condition index
-    x_logical = np.logical_and((points[:, 0] < voxel_size[0] * resolution[0]), (points[:, 0] >= 0))
-    y_logical = np.logical_and((points[:, 1] < voxel_size[1] * resolution[1]), (points[:, 1] >= 0))
-    #z_logical = np.logical_and((points[:, 2] < voxel_size[2] * resolution[2]), (points[:, 2] >= 0))
-    xy_logical = np.logical_and(x_logical, y_logical)
-    #xyz_logical = np.logical_and(x_logical, np.logical_and(y_logical, z_logical))
-    #inside_box_points = points[xyz_logical]
-    inside_box_points = points[xy_logical]
-    # init voxel grid with zero padding_to_size=(32*32*32) and set the occupany grid
-    voxels = np.zeros(padding_size)
-    # centerlize to padding box
-    center_points = inside_box_points + (padding_size[0] - voxel_size[0]) * resolution / 2
-    # TODO currently just use the binary hit grid
-    x_idx = (center_points[:, 0] / resolution[0]).astype(int)
-    y_idx = (center_points[:, 1] / resolution[1]).astype(int)
-    #z_idx = (center_points[:, 2] / resolution[2]).astype(int)
-    #voxels[x_idx, y_idx, z_idx] = OCCUPIED
-    voxels[x_idx, y_idx] = OCCUPIED
-    return voxels
-    #return voxels, inside_box_points
-
+    return obs_repre,obs_voxel,paths,path_lengths
 

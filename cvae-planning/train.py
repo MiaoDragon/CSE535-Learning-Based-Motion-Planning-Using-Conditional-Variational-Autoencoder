@@ -38,8 +38,8 @@ def main(args):
     # load previously trained model if start epoch > 0
 
     # dynamically import model
-    ae_module = importlib.import_module('model.ae_%s_model_%d' % (args.env_type, args.model_id))
-    cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_type, args.model_id))
+    ae_module = importlib.import_module('model.ae_%s_model_%d' % (args.env_name, args.model_id))
+    cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_name, args.model_id))
     e_net = ae_module.Encoder(input_size=args.e_net_input_size, output_size=args.e_net_output_size)
     cvae = cvae_module.CVAE(input_size=args.input_size, latent_size=args.latent_size, cond_size=args.cond_size)
 
@@ -56,7 +56,7 @@ def main(args):
         smpnet = SMPPathSimpleNet(e_net, cvae)
 
 
-    model_dir = args.model_dir + '%s/%s/model_%d/param_%s/' % (args.env_type, args.model_type, args.model_id, args.param_name)
+    model_dir = args.model_dir + '%s/%s/model_%d/param_%s/' % (args.env_name, args.model_type, args.model_id, args.param_name)
 
     if not os.path.exists(model_dir):
         os.makedirs(model_dir, exist_ok=True)
@@ -88,7 +88,9 @@ def main(args):
     # load train and test data
     print('loading...')
     val_sp = int(args.no_motion_paths * (1-args.val_ratio))
-    data_folder = args.data_folder+args.env_type+'/'
+    data_folder = args.data_folder+args.env_name+'/'
+    print('data_folder: ')
+    print(data_folder)
     if args.model_type == "SMPPathNet":
         load_dis_ratio = True
     elif args.model_type == "SMPPathWithPriorNet":
@@ -137,7 +139,7 @@ def main(args):
     # Train the Models
     print('training...')
 
-    writer_fname = 'env_%s_param_%s' % (args.env_type, args.param_name)
+    writer_fname = 'env_%s_param_%s' % (args.env_name, args.param_name)
 
     writer = SummaryWriter('./train_stats/'+writer_fname)
     record_i = 0

@@ -1,5 +1,5 @@
 """
-CVAE model for s2d environment: SimpleNet model
+CVAE model for forst environment
 """
 import torch
 import torch.nn as nn
@@ -13,14 +13,18 @@ class Encoder(nn.Module):
         self.mu_network = nn.Sequential(
             nn.Linear(input_size+cond_size, 256), nn.PReLU(), nn.Dropout(),
             nn.Linear(256, 128), nn.PReLU(), nn.Dropout(),
-            nn.Linear(128, 32), nn.PReLU(),
+            nn.Linear(128, 64), nn.PReLU(),
+            nn.Linear(64, 32), nn.PReLU(),
+            nn.Linear(32, 32), nn.PReLU(),
             nn.Linear(32, latent_size)
         )
         # we set the covariance matrix to be diag([sigma_1,...,sigma_k])
         self.log_sigma_pow2_network = nn.Sequential(
             nn.Linear(input_size+cond_size, 256), nn.PReLU(), nn.Dropout(),
             nn.Linear(256, 128), nn.PReLU(), nn.Dropout(),
-            nn.Linear(128, 32), nn.PReLU(),
+            nn.Linear(128, 64), nn.PReLU(),
+            nn.Linear(64, 32), nn.PReLU(),
+            nn.Linear(32, 32), nn.PReLU(),
             nn.Linear(32, latent_size)
         )
         self.output_size = latent_size
@@ -63,7 +67,9 @@ class Decoder(nn.Module):
             nn.Linear(latent_size+cond_size, 512), nn.PReLU(), nn.Dropout(),
             nn.Linear(512, 256), nn.PReLU(), nn.Dropout(),
             nn.Linear(256, 128), nn.PReLU(), nn.Dropout(),
-            nn.Linear(128, 32), nn.PReLU(),
+            nn.Linear(128, 64), nn.PReLU(),
+            nn.Linear(64, 32), nn.PReLU(),
+            nn.Linear(32, 32), nn.PReLU(),
             nn.Linear(32, output_size)
         )
         self.latent_size = latent_size

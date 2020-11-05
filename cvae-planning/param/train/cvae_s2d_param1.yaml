@@ -2,6 +2,7 @@
 model_dir: "/common/users/ym420/results/SMPNet/"
 data_folder: "/freespace/local/ym420/course/cse535/data/"
 env_type: "s2d"
+env_name: "s2d"
 
 no_env: 100
 no_motion_paths: 4000
