@@ -78,6 +78,9 @@ def load_train_dataset(N, NP, s, sp, data_folder='motion_planning_datasets/fores
         obs_voxel_i[1] = img_indices[0]
         obs_voxel_i[2] = img_indices[1]
         obs_voxel_i = obs_voxel_i.astype(float)  # result: 3x201x201
+        # scale indices
+        obs_voxel_i[1] = obs_voxel_i[1] / obs_voxel_i[1].max()
+        obs_voxel_i[2] = obs_voxel_i[2] / obs_voxel_i[2].max()
 
         obs_voxel.append(np.array(obs_voxel_i))
 
@@ -148,10 +151,24 @@ def load_test_dataset(N=100,NP=200, s=0,sp=4000, folder='../data/s2d/'):
         obs_repre_i = imageio.imread(obs_folder+'%d.png' % (i+s))
         obs_repre.append(obs_repre_i)
         # can directly use the image as "voxel"
-        obs_voxel_i = np.array(obs_repre_i)
-        obs_voxel_i[obs_voxel_i==0] = 1  # obstacle
-        obs_voxel_i[obs_voxel_i==255] = 0  # non-obstacle
-        obs_voxel.append(np.array([obs_repre_i]))  # add one more dimension
+        obs_voxel_i = np.zeros([3] + list(obs_repre_i.shape)).astype(int)  # first channel: 0,1 map  # second channel: row loc  # third channel: col loc
+        
+        obs_voxel_i[0] = obs_repre_i
+        obs_voxel_i[0,obs_voxel_i[0]==0] = 1  # obstacle
+        obs_voxel_i[0,obs_voxel_i[0]==255] = 0  # non-obstacle
+        # unit testing here: visualize the loaded voxel
+
+        img_indices = np.indices(obs_repre_i.shape)  # return: 2ximgshape
+        obs_voxel_i[1] = img_indices[0]
+        obs_voxel_i[2] = img_indices[1]
+        obs_voxel_i = obs_voxel_i.astype(float)  # result: 3x201x201
+        # scale indices
+        obs_voxel_i[1] = obs_voxel_i[1] / obs_voxel_i[1].max()
+        obs_voxel_i[2] = obs_voxel_i[2] / obs_voxel_i[2].max()
+
+        obs_voxel.append(np.array(obs_voxel_i))
+    obs_repre = np.array(obs_repre)
+    obs_voxel = np.array(obs_voxel)
 
     paths = []
     path_lengths = np.zeros((N,NP)).astype(int)
