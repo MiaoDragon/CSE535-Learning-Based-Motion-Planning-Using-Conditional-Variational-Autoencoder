@@ -1,0 +1,46 @@
+---
+model_dir: "/home/yinglong/Documents/research/learning_motion_planning/result/TSMPPathWithPriorNet/" #"/common/users/ym420/results/TSMPPathWithPriorNet/"
+data_folder: "/home/yinglong/Documents/research/task_motion_planning/data/planet_data/"
+env_type: "tamp"
+env_name: "tamp"
+
+no_env: 1
+no_motion_paths: 10 #800
+val_ratio: 0.1
+
+# network structure
+e_net_input_size: 32
+e_net_output_size: 28
+x_size: 46
+s_size: 26
+x_latent_size: 32
+s_latent_size: 32
+c_latent_size: 32
+cond_size: 99
+model_type: "TSMPPathWithPriorNet"
+model_id: 1
+
+# loss
+beta: 0.1
+L: 1
+
+# training hyperparameter
+learning_rate: 0.00001
+lr_schedule_gamma: 0.5
+lr_schedule_patience: 0
+early_stop_freq: 1  # every how many times we evaluate early stopping
+early_stop_patience: 10  # how many times val loss goes up
+num_epochs: 100
+batch_size: 256
+start_epoch: 0
+world_size: [2.75, 2.75, 5.54, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+
+# logging
+log_steps: 100
+save_steps: 2000
+
+device: 0
+opt: "Adam"
+
+param_name: 1
+

@@ -15,6 +15,7 @@ from model.SMPNet import SMPNet
 from model.SMPPathNet import SMPPathNet
 from model.SMPPathWithPriorNet import SMPPathWithPriorNet
 from model.SMPPathSimpleNet import SMPPathSimpleNet
+from model.TSMPPathWithPriorNet import TSMPPathWithPriorNet
 #from tools import data_loader
 from tools.utility import *
 #from plan_utility import cart_pole, cart_pole_obs, pendulum, acrobot_obs, car_obs
@@ -38,10 +39,14 @@ def main(args):
     # load previously trained model if start epoch > 0
 
     # dynamically import model
-    ae_module = importlib.import_module('model.ae_%s_model_%d' % (args.env_name, args.model_id))
-    cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_name, args.model_id))
-    e_net = ae_module.Encoder(input_size=args.e_net_input_size, output_size=args.e_net_output_size)
-    cvae = cvae_module.CVAE(input_size=args.input_size, latent_size=args.latent_size, cond_size=args.cond_size)
+    if args.model_type != "TSMPPathWithPriorNet":
+        ae_module = importlib.import_module('model.ae_%s_model_%d' % (args.env_name, args.model_id))
+        cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_name, args.model_id))
+        e_net = ae_module.Encoder(input_size=args.e_net_input_size, output_size=args.e_net_output_size)
+        cvae = cvae_module.CVAE(input_size=args.input_size, latent_size=args.latent_size, cond_size=args.cond_size)
+    else:
+        cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_name, args.model_id))        
+        cvae = cvae_module.CVAE(args.x_size, args.s_size, args.x_latent_size, args.s_latent_size, args.c_latent_size, args.cond_size)
 
     data_loader = importlib.import_module('tools.data_loader_%s' % (args.env_type))
     plan_util = importlib.import_module('plan_util.%s' % (args.env_type))
@@ -54,7 +59,8 @@ def main(args):
         smpnet = SMPPathWithPriorNet(e_net, cvae)
     elif args.model_type == "SMPPathSimpleNet":
         smpnet = SMPPathSimpleNet(e_net, cvae)
-
+    elif args.model_type == "TSMPPathWithPriorNet":
+        smpnet = TSMPPathWithPriorNet(cvae)
 
     model_dir = args.model_dir + '%s/%s/model_%d/param_%s/' % (args.env_name, args.model_type, args.model_id, args.param_name)
 
@@ -73,7 +79,9 @@ def main(args):
     if torch.cuda.is_available():
         smpnet.cuda()
         smpnet.cvae.cuda()
-        smpnet.e_net.cuda()
+        if hasattr(smpnet, 'e_net'):
+            smpnet.e_net.cuda()
+
         if args.opt == 'Adagrad':
             smpnet.set_opt(torch.optim.Adagrad, lr=args.learning_rate)
         elif args.opt == 'Adam':
@@ -99,6 +107,8 @@ def main(args):
         load_dis_ratio = True
     elif args.model_type == "SMPNet":
         load_dis_ratio = False
+    elif args.model_type == "TSMPPathWithPriorNet":
+        load_dis_ratio = True
     waypoint_dataset, cond_dataset, obs, env_indices = data_loader.load_train_dataset(N=args.no_env, NP=val_sp, s=0, sp=0,
                                                                    data_folder=data_folder, load_dis_ratio=load_dis_ratio)
     cond_dataset = np.array(cond_dataset)
