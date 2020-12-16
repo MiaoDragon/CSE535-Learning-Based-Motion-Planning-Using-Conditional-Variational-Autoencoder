@@ -468,7 +468,7 @@ class PriorNet(nn.Module):
         # draw standard normal distribution
         # input: Bxk
         # return: LxBxk
-        eps = torch.randn((L,len(mu),self.len(mu[0])))
+        eps = torch.randn((L,mu.size()[0],mu.size()[1]))
         if log_sigma_pow2.is_cuda:
             eps = eps.cuda(log_sigma_pow2.device)
         eps = eps * torch.exp(log_sigma_pow2/2)
@@ -729,3 +729,6 @@ class CVAE(nn.Module):
         s = self.decoder.discrete_sample(s_p)
         # combine input
         return torch.cat([x,s], dim=1)
+
+    def forward(self, y):
+        return self.gen_forward(y)

@@ -1,6 +1,8 @@
 ---
-model_dir: "/common/users/ym420/results/TSMPPathWithPriorNet/"
-data_folder: "/freespace/local/ym420/task_motion_planning/data/planet_data/"
+#model_dir: "/common/users/ym420/results/TSMPPathWithPriorNet/"
+model_dir: "/home/yinglong/Documents/research/learning_motion_planning/result/TSMPPathWithPriorNet/"
+#data_folder: "/freespace/local/ym420/task_motion_planning/data/planet_data/"
+data_folder: "/home/yinglong/Documents/research/task_motion_planning/data/planet_data/"
 env_type: "tamp"
 env_name: "tamp"
 
@@ -32,7 +34,7 @@ early_stop_freq: 1  # every how many times we evaluate early stopping
 early_stop_patience: 10  # how many times val loss goes up
 num_epochs: 1000
 batch_size: 256
-start_epoch: 0
+start_epoch: 99
 world_size: [2.75, 2.75, 5.54, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 3.141592653589793, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 2.75, 2.75, 5.54, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
 
 # logging
