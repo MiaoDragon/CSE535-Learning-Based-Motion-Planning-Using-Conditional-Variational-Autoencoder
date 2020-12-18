@@ -39,8 +39,8 @@ def main(args):
     # load previously trained model if start epoch > 0
 
     # dynamically import model
-    ae_module = importlib.import_module('model.ae_%s_model_%d' % (args.env_type, args.model_id))
-    cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_type, args.model_id))
+    ae_module = importlib.import_module('model.ae_%s_model_%d' % (args.env_name, args.model_id))
+    cvae_module = importlib.import_module('model.cvae_%s_model_%d' % (args.env_name, args.model_id))
     e_net = ae_module.Encoder(input_size=args.e_net_input_size, output_size=args.e_net_output_size)
     cvae = cvae_module.CVAE(input_size=args.input_size, latent_size=args.latent_size, cond_size=args.cond_size)
 
@@ -59,7 +59,7 @@ def main(args):
         smpnet = SMPPathSimpleNet(e_net, cvae)
 
 
-    model_dir = args.model_dir + '%s/%s/model_%d/param_%s/' % (args.env_type, args.model_type, args.model_id, args.param_name)
+    model_dir = args.model_dir + '%s/%s/model_%d/param_%s/' % (args.env_name, args.model_type, args.model_id, args.param_name)
 
     if not os.path.exists(model_dir):
         os.makedirs(model_dir, exist_ok=True)
@@ -90,7 +90,7 @@ def main(args):
 
     # load train and test data
     print('loading...')
-    data_folder = args.data_folder+args.env_type+'/'
+    data_folder = args.data_folder+args.env_name+'/'
     obs_repre,obs_pcd,paths,path_lengths = data_loader.load_test_dataset(N=args.no_env,NP=args.no_motion_paths, \
                                                     s=args.s,sp=args.sp, folder=data_folder)
     # obs_repre: obstacle representation for collision checking
@@ -103,7 +103,7 @@ def main(args):
     plan_struct_module = importlib.import_module('frmpl.planner_structure.%s' % (args.plan_struct_type))
 
     nearest_computer = nearest_computer_module.NearestComputer()
-    plan_env = plan_utility.Environment()
+    plan_env = plan_utility.Environment(args.x_low, args.x_high)
     collision_checker = plan_utility.CollisionChecker()
     metrics = plan_utility.Metrics()
     plan_struct = plan_struct_module.PlanStructure()
@@ -119,8 +119,8 @@ def main(args):
             self.x_goal = x_goal
             self.obs_pcd = obs_pcd
             self.env = env
-            self.path_len = 4  # init
-            self.disc_num = 10
+            self.path_len = args.plan_param['path_len']  # init
+            self.disc_num = args.plan_param['disc_num']
             self.samples = self.sample_batch(x_start, x_goal, obs_pcd, self.path_len, self.disc_num)
             self.sample_idx = 0
             self.smp_sample_ratio = 0.9
@@ -137,7 +137,7 @@ def main(args):
                 # generate batch sample
                 # dynamically increase the path_len
                 self.path_len = self.path_len * 2
-                self.disc_num = max(int(self.disc_num / 2), 1)
+                self.disc_num = max(int(self.disc_num * 0.8), 1)
                 print('increasing sample length')
                 self.samples = self.sample_batch(self.x_start, self.x_goal, self.obs_pcd, self.path_len, self.disc_num)
                 self.sample_idx = 0
@@ -148,8 +148,10 @@ def main(args):
         def sample_batch(self, start_i, goal_i, obs_i, path_len, disc_num):
             # path_len: number of nodes on the path
             # disc_num: number of node to draw for each specific discete position
-            dist = np.linspace(1./path_len, 1., num=path_len)
-            dist = np.tile(dist, [disc_num, 1]).reshape(-1,1)
+            dist = np.linspace(0., 1., num=path_len, endpoint=False)
+            dist = np.tile(dist, [disc_num, 1]) + np.random.rand(disc_num,path_len) * (1. / path_len)
+            dist = dist.reshape(-1, 1)
+            #print(dist.reshape(-1))
             num_sample = path_len * disc_num
 
             start_i = np.tile(start_i, [num_sample, 1])
@@ -180,11 +182,15 @@ def main(args):
 
     if args.env_type == "s2d":
         plan_env_data = 5.0 # obs_width
-
+    elif args.env_type == 'complex_2d':
+        plan_env_data = args.plan_env_data
+    #TODO: add for forest
     if args.visual:
         import matplotlib.pyplot as plt
         import matplotlib.patches as patches
-        from tools.s2d_plan_visual import plot_and_save, make_video
+        vis_module = importlib.import_module('tools.%s_plan_visual' % (args.env_type))
+        plot_and_save = vis_module.plot_and_save
+        make_video = vis_module.make_video
 
     # log results
     plan_results = {}
@@ -199,7 +205,7 @@ def main(args):
     plan_results['success'] = [[] for i in range(args.no_env)]  # 0 or 1
 
     result_folder = args.result_folder+"%s/%s/%s/param_%d/" % \
-                        (args.env_type, args.planner_type, args.sample_type, args.param_name)
+                        (args.env_name, args.planner_type, args.sample_type, args.param_name)
 
     os.makedirs(result_folder, exist_ok=True)
 
@@ -237,9 +243,9 @@ def main(args):
             # visualization
             if args.visual:
                 plot_path = "plots/planner/%s/%s/%s/param_%d/e_%d_p_%d/" % \
-                            (args.env_type, args.planner_type, args.sample_type, args.param_name, obs_idx+args.s, path_idx+args.sp)
+                            (args.env_name, args.planner_type, args.sample_type, args.param_name, obs_idx+args.s, path_idx+args.sp)
                 video_path = "video/planner/%s/%s/%s/param_%d/e_%d_p_%d/" % \
-                            (args.env_type, args.planner_type, args.sample_type, args.param_name, obs_idx+args.s, path_idx+args.sp)
+                            (args.env_name, args.planner_type, args.sample_type, args.param_name, obs_idx+args.s, path_idx+args.sp)
                 os.makedirs(plot_path, exist_ok=True)
                 os.makedirs(video_path, exist_ok=True)
 

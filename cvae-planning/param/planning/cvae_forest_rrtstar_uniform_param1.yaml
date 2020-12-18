@@ -1,0 +1,63 @@
+---
+model_dir: "/common/users/ym420/results/SMPNet/"
+data_folder: "/freespace/local/ym420/course/cse535/data/motion_planning_datasets/"
+env_type: "complex_2d"
+env_name: "forest"
+
+no_env: 100 #110
+no_motion_paths: 200 #50
+val_ratio: 0.05
+
+# network structure
+e_net_input_size: 201
+e_net_output_size: 64
+input_size: 2
+latent_size: 3
+cond_size: 69  # 64 + 4 + 1
+model_type: "SMPPathWithPriorNet"
+model_id: 1
+
+
+# loss
+beta: 0.5
+L: 1
+
+# training hyperparameter
+learning_rate: 0.00001
+lr_schedule_gamma: 0.5
+lr_schedule_patience: 0
+early_stop_freq: 1  # every how many times we evaluate early stopping
+early_stop_patience: 10  # how many times val loss goes up
+num_epochs: 100
+batch_size: 256
+start_epoch: 100
+world_size: [10.0, 10.0]
+x_low: [-10., -10.]
+x_high: [10., 10.]
+# logging
+log_steps: 100
+save_steps: 2000
+
+device: 0
+opt: "Adam"
+
+param_name: 1
+
+
+# for planning
+s: 0 #0
+sp: 800 #4000
+planner_type: rrtstar
+nearest_neighbor: naive_nearest_neighbor
+plan_struct_type: plan_tree
+sample_type: uniform_sampler
+max_iter: 1000
+
+eps: 0.01
+d_goal: 0.1  # radius of goal region
+plan_param: {"radius": 10., "goal_bias": 0.1, "path_len": 2, "disc_num": 50}
+plan_env_data: False
+
+# debug
+visual: False
+result_folder: "/common/users/ym420/results/SMPNet/test/"
